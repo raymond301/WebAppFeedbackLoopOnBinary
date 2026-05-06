@@ -165,6 +165,24 @@ Platform.runLater {
         def packetPath = buildFilePath(exportFolder, "Packet_${savedCount + 1}_${timestamp}")
         mkdirs(packetPath)
 
+        // 0. Packet-level metadata for downstream indexing & provenance
+        def packetInfoFile = new File(buildFilePath(packetPath, "packet_info.json"))
+        def channels = activeChannelNames.collect { '"' + it + '"' }.join(', ')
+        def jsonContent = """{
+  "packetIndex": ${savedCount + 1},
+  "timestamp": "${timestamp}",
+  "imageName": "${imageName}",
+  "markerName": "${markerName}",
+  "cropSizeMicrons": ${cropSizeMicrons},
+  "pixelSizeMicrons": ${pixelSize},
+  "cropSizePixels": ${gridDim},
+  "spotCenterX": ${spot.x},
+  "spotCenterY": ${spot.y},
+  "spotCellCount": ${spot.count},
+  "activeChannels": [${channels}]
+}"""
+        packetInfoFile.text = jsonContent
+
         // 1. Filter server to active channels ONLY
         def filteredServer = new TransformedServerBuilder(server)
             .extractChannels(activeChannelIndices as int[])
