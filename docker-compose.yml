@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  api:
+    build: ./backend
+    ports: ["8080:8080"]
+    environment:
+      - GCS_BUCKET=your-bucket
+      - GCS_ROOT=Exported_Packets
+  web:
+    build: ./frontend
+    ports: ["5173:80"]
