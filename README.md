@@ -37,7 +37,7 @@ It provides:
 1. **Google Cloud project** with billing enabled.
 2. Installed locally:
    - `gcloud` CLI
-   - `docker` (with BuildKit enabled)
+   - Docker Desktop for Windows (optional for local `docker compose` only)
    - `git`
 3. A GCS bucket containing packet data under `Exported_Packets/...`.
 4. IAM permissions to:
@@ -48,16 +48,42 @@ It provides:
 
 ---
 
-## 4) Local development setup (quick start)
+## 4) Windows 11 + VS Code setup
 
-### Step 4.1: Clone and enter repo
+These steps are tailored for **Windows 11** with development in **VS Code**.
+
+### Step 4.1: Install tooling on Windows 11
+
+1. Install **Git for Windows**: https://git-scm.com/download/win
+2. Install **VS Code**: https://code.visualstudio.com/
+3. Install **Google Cloud CLI**: https://cloud.google.com/sdk/docs/install
+4. (Optional) Install **Docker Desktop** if you want local container runs.
+
+### Step 4.2: Recommended VS Code extensions
+
+- Python
+- Pylance
+- Docker
+- ESLint
+- Prettier
+
+### Step 4.3: Open terminal choice
+
+Use **PowerShell** or **Git Bash** inside VS Code (`Terminal -> New Terminal`).
+Commands in this README are Bash-style; in PowerShell, set vars using `$env:VAR="value"`.
+
+---
+
+## 5) Local development setup (quick start)
+
+### Step 5.1: Clone and enter repo
 
 ```bash
 git clone <your-repo-url>
 cd WebAppFeedbackLoopOnBinary
 ```
 
-### Step 4.2: Configure local environment
+### Step 5.2: Configure local environment
 
 Set the bucket name used by backend:
 
@@ -66,13 +92,20 @@ export GCS_BUCKET=<your-bucket-name>
 export GCS_ROOT=Exported_Packets
 ```
 
+PowerShell equivalent:
+
+```powershell
+$env:GCS_BUCKET="<your-bucket-name>"
+$env:GCS_ROOT="Exported_Packets"
+```
+
 If using Application Default Credentials locally:
 
 ```bash
 gcloud auth application-default login
 ```
 
-### Step 4.3: Run locally with Docker Compose
+### Step 5.3: Run locally with Docker Compose
 
 ```bash
 docker compose up --build
@@ -82,7 +115,7 @@ Services:
 - API: `http://localhost:8080`
 - Frontend: `http://localhost:5173`
 
-### Step 4.4: Validate local endpoints
+### Step 5.4: Validate local endpoints
 
 ```bash
 curl http://localhost:8080/health
@@ -91,7 +124,8 @@ curl http://localhost:8080/api/tree
 
 ---
 
-## 5) GCP deployment (Cloud Run + Artifact Registry + GCS)
+## 6) GCP deployment (Cloud Run + Artifact Registry + GCS)
+
 
 > The steps below deploy **two Cloud Run services**:
 > 1) `spatial-snr-api` (backend) and 2) `spatial-snr-web` (frontend).
@@ -147,11 +181,13 @@ gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
   --role="roles/storage.objectAdmin"
 ```
 
-### Step 5.5: Build backend image and push
+### Step 5.5: Build backend image with Google Cloud Build
+
+Use Cloud Build instead of local Docker builds:
 
 ```bash
-docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/spatial-snr-api:latest ./backend
-docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/spatial-snr-api:latest
+gcloud builds submit ./backend \
+  --tag $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/spatial-snr-api:latest
 ```
 
 ### Step 5.6: Deploy backend to Cloud Run
@@ -175,16 +211,16 @@ export API_URL=$(gcloud run services describe $API_SERVICE --region=$REGION --fo
 echo $API_URL
 ```
 
-### Step 5.7: Build frontend with backend URL configured
+### Step 5.7: Build frontend image with Cloud Build (inject API URL)
+
+Because frontend build needs `VITE_API_BASE`, pass it as a Docker build arg through Cloud Build:
 
 ```bash
-docker build \
-  --build-arg VITE_API_BASE=$API_URL \
-  -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/spatial-snr-web:latest \
-  ./frontend
-
-docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/spatial-snr-web:latest
+gcloud builds submit ./frontend \
+  --config ./frontend/cloudbuild.yaml \
+  --substitutions=_IMAGE=$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/spatial-snr-web:latest,_VITE_API_BASE=$API_URL
 ```
+
 
 ### Step 5.8: Deploy frontend to Cloud Run
 
@@ -206,7 +242,7 @@ gcloud run services describe $WEB_SERVICE --region=$REGION --format='value(statu
 
 ---
 
-## 6) Post-deploy verification checklist
+## 7) Post-deploy verification checklist
 
 1. Open frontend URL.
 2. Confirm tree loads images/markers/packets from GCS.
@@ -222,7 +258,7 @@ gcloud storage ls gs://$BUCKET/Exported_Packets/<image>/<marker>/<packet>/
 
 ---
 
-## 7) Security and IAM notes
+## 8) Security and IAM notes
 
 - Prefer **restricted CORS** in production (`ALLOWED_ORIGINS=https://your-frontend-domain`).
 - If frontend should be private, remove `--allow-unauthenticated` and enforce IAM/IAP.
@@ -230,7 +266,7 @@ gcloud storage ls gs://$BUCKET/Exported_Packets/<image>/<marker>/<packet>/
 
 ---
 
-## 8) Operational notes
+## 9) Operational notes
 
 - System is intentionally stateless; all durable state is written back to GCS.
 - Downstream Nextflow can gate on presence of decision JSON files.
@@ -238,7 +274,7 @@ gcloud storage ls gs://$BUCKET/Exported_Packets/<image>/<marker>/<packet>/
 
 ---
 
-## 9) Useful API endpoints
+## 10) Useful API endpoints
 
 - `GET /health`
 - `GET /api/tree`
